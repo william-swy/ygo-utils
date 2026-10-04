@@ -1,0 +1,9 @@
+[package]
+name = "ygo-utils"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+reqwest = { version = "0.13.5", features = ["blocking", "json"] }
+serde_json = { version = "1.0.151" }
+serde = { version = "1.0.229", features = ["derive"] }

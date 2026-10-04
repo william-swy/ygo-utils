@@ -1,0 +1,1 @@
+Utility to generate Master Duel banlist for EDOPro simulator
