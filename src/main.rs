@@ -1,5 +1,5 @@
 use reqwest::blocking::Client;
-use std::{collections::HashMap, print};
+use std::{collections::HashMap};
 
 #[derive(serde::Deserialize, Debug)]
 struct GithubDirectory {
@@ -38,15 +38,56 @@ struct YGOProDeckCardResponse {
     frame_type: String,
     desc: String,
     ygoprodeck_url: String,
-    card_images: Vec<YGOProdDeckCardImageResponse>
+    card_images: Vec<YGOProDeckCardImageResponse>
 }
 
 #[derive(serde::Deserialize, Debug)]
-struct YGOProdDeckCardImageResponse {
+struct YGOProDeckCardImageResponse {
     id: i32,
     image_url: String,
     image_url_small: String,
     image_url_cropped: String,
+}
+
+struct EDOProBanListEntry {
+    // Different than konami id
+    pub ygo_pro_id: i32,
+    pub count: i32,
+    pub card_name: String,
+}
+
+impl EDOProBanListEntry {
+    fn to_line(&self) -> String {
+        return format!("{} {} --{}", self.ygo_pro_id, self.count, self.card_name)
+    }
+}
+
+fn write_ban_list(date: &str, ban_list_entries: Vec<EDOProBanListEntry>) -> Result<(), std::io::Error> {
+    let mut contents = Vec::<String>::new();
+
+    let file_name = format!("{}_master_duel.lflist.conf", date);
+
+    contents.push(format!("#[{} Master Duel]", date));
+    contents.push(format!("!{} Master Duel", date));
+
+    contents.push(String::from("#Forbidden"));
+    contents.extend(ban_list_entries.iter()
+        .filter(|entry| entry.count == 0)
+        .map(|entry| entry.to_line()));
+
+    contents.push(String::from("#Limited"));
+    contents.extend(ban_list_entries.iter()
+        .filter(|entry| entry.count == 1)
+        .map(|entry| entry.to_line()));
+
+    contents.push(String::from("Semi-limited"));
+    contents.extend(ban_list_entries.iter()
+        .filter(|entry| entry.count == 2)
+        .map(|entry| entry.to_line()));
+
+    let content = contents.join("\n");
+
+    std::fs::write(file_name, content)
 }
 
 fn main() {
@@ -75,7 +116,15 @@ fn main() {
 
     println!("Content = {:#?}", file);
 
-    let mut contents = Vec::<String>::new();
+    // TODO Need to add header
+    // #[<Date> Master Duel]
+    // !<Date> Master Duel
+    // For easier reading separate into sections
+    // #Forbidden
+    // #Limited
+    // #Semi-limited
+
+    let mut ban_list_entries = Vec::<EDOProBanListEntry>::new();
 
     for (konami_id, count) in file.regulation.iter() {
         let card = client
@@ -90,15 +139,16 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_millis(500));
 
         for card_art in &card[0].card_images {
-            let id = card_art.id;
-            let card_name = &card[0].name;
-            // Format is
-            // <id> <count> --<card name>
-            contents.push(format!("{} {} --{}", id, count, card_name));
+            ban_list_entries.push(
+                EDOProBanListEntry { 
+                    ygo_pro_id: card_art.id, 
+                    count: *count, 
+                    card_name: card[0].name.clone()
+                }
+            );
         }
     }
 
-    let content = contents.join("\n");
+    write_ban_list("2026-10-06", ban_list_entries).unwrap();
 
-    std::fs::write("master_duel.lflist.conf", content).unwrap();
 }
