@@ -1,25 +1,31 @@
-use reqwest::blocking::Client;
-use std::{collections::HashMap};
+use clap::{Args, Parser, ValueEnum};
+use std::{println, str::FromStr};
 
-#[derive(serde::Deserialize, Debug)]
-struct GithubDirectory {
-    pub download_url: String,
-    pub git_url: String,
-    pub html_url: String,
-    pub name: String,
-    pub path: String,
-    pub sha: String,
-    pub size: i32,
-    #[serde(rename = "type")]
-    pub content_type: String,
-    pub url: String,
+use crate::yaml_yugi::BanListName;
+
+mod yaml_yugi;
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    #[command(flatten)]
+    operation: Operations,
 }
 
-#[derive(serde::Deserialize, Debug)]
-struct BanListVectorFormat {
-    pub date: String,
-    // String is Konami id, i32 is count
-    pub regulation: HashMap<String, i32>
+#[derive(Args)]
+#[group(required = true, multiple = false)]
+struct Operations {
+    #[arg(short, long, value_enum)]
+    show: Option<Show>,
+    #[arg(short, long)]
+    generate: Option<String>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum Show {
+    All,
+    Current,
+    Next,
 }
 
 // From https://ygoprodeck.com/api-guide/
@@ -90,65 +96,94 @@ fn write_ban_list(date: &str, ban_list_entries: Vec<EDOProBanListEntry>) -> Resu
     std::fs::write(file_name, content)
 }
 
-fn main() {
-    let client = Client::builder()
-        .user_agent("ygo-utils")
-        .build().unwrap();
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli = Cli::parse();
 
-    let body = client
-    .get("https://api.github.com/repos/DawnbrandBots/yaml-yugi-limit-regulation/contents/data/master-duel")
-    .send()
-    .unwrap()
-    .json::<Vec<GithubDirectory>>()
-    .unwrap();
+    let ban_list_client = yaml_yugi::Client::new()?;
 
-    for item in body {
-        println!("Item = {:#?}", item)
-    }
+    let ban_lists = ban_list_client.get_banlists().await?;
 
-    let file = client
-        .get("https://api.github.com/repos/DawnbrandBots/yaml-yugi-limit-regulation/contents/data/master-duel/2026-10-06.vector.json")
-        .header(reqwest::header::ACCEPT, "application/vnd.github.raw+json")
-        .send()
-        .unwrap()
-        .json::<BanListVectorFormat>()
-        .unwrap();
-
-    println!("Content = {:#?}", file);
-
-    // TODO Need to add header
-    // #[<Date> Master Duel]
-    // !<Date> Master Duel
-    // For easier reading separate into sections
-    // #Forbidden
-    // #Limited
-    // #Semi-limited
-
-    let mut ban_list_entries = Vec::<EDOProBanListEntry>::new();
-
-    for (konami_id, count) in file.regulation.iter() {
-        let card = client
-            .get(format!("https://db.ygoprodeck.com/api/v7/cardinfo.php?konami_id={}&misc=yes", konami_id))
-            .send()
-            .unwrap()
-            .json::<YGOProDeckResponse>()
-            .unwrap()
-            .data;
-
-        println!("Sleeping");
-        std::thread::sleep(std::time::Duration::from_millis(500));
-
-        for card_art in &card[0].card_images {
-            ban_list_entries.push(
-                EDOProBanListEntry { 
-                    ygo_pro_id: card_art.id, 
-                    count: *count, 
-                    card_name: card[0].name.clone()
-                }
-            );
+    if let Some(show) = cli.operation.show {
+        for name in ban_lists {
+            println!("{}", name);
         }
     }
 
-    write_ban_list("2026-10-06", ban_list_entries).unwrap();
+    if let Some(version) = cli.operation.generate {
+        let name = BanListName::from_str(&version)?;
+
+        let content = ban_list_client
+            .get_banlist_content(name)
+            .await?;
+
+        let mut ban_list_entries = Vec::<EDOProBanListEntry>::new();
+
+        let client = reqwest::Client::builder()
+                .user_agent("ygo-utils")
+                .build()?;
+        
+        for (konami_id, count) in content.regulation.iter() {
+            let card = client
+                .get(format!("https://db.ygoprodeck.com/api/v7/cardinfo.php?konami_id={}&misc=yes", konami_id))
+                .send()
+                .await?
+                .json::<YGOProDeckResponse>()
+                .await?
+                .data;
+
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+            for card_art in &card[0].card_images {
+                ban_list_entries.push(
+                    EDOProBanListEntry { 
+                        ygo_pro_id: card_art.id, 
+                        count: *count, 
+                        card_name: card[0].name.clone()
+                    }
+                );
+            }
+        }
+
+        write_ban_list("2026-10-06", ban_list_entries).unwrap();
+    }
+
+
+
+    // // TODO Need to add header
+    // // #[<Date> Master Duel]
+    // // !<Date> Master Duel
+    // // For easier reading separate into sections
+    // // #Forbidden
+    // // #Limited
+    // // #Semi-limited
+
+    // let mut ban_list_entries = Vec::<EDOProBanListEntry>::new();
+
+    // for (konami_id, count) in file.regulation.iter() {
+    //     let card = client
+    //         .get(format!("https://db.ygoprodeck.com/api/v7/cardinfo.php?konami_id={}&misc=yes", konami_id))
+    //         .send()
+    //         .unwrap()
+    //         .json::<YGOProDeckResponse>()
+    //         .unwrap()
+    //         .data;
+
+    //     println!("Sleeping");
+    //     std::thread::sleep(std::time::Duration::from_millis(500));
+
+    //     for card_art in &card[0].card_images {
+    //         ban_list_entries.push(
+    //             EDOProBanListEntry { 
+    //                 ygo_pro_id: card_art.id, 
+    //                 count: *count, 
+    //                 card_name: card[0].name.clone()
+    //             }
+    //         );
+    //     }
+    // }
+
+    // write_ban_list("2026-10-06", ban_list_entries).unwrap();
+    Ok(())
 
 }
