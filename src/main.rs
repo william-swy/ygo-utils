@@ -2,6 +2,7 @@ use clap::{Args, Parser, ValueEnum};
 use std::{println, str::FromStr};
 
 mod yaml_yugi;
+mod ygo_pro_deck;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -24,33 +25,6 @@ enum Show {
     All,
     Current,
     Next,
-}
-
-// From https://ygoprodeck.com/api-guide/
-#[derive(serde::Deserialize, Debug)]
-struct YGOProDeckResponse {
-    data: Vec<YGOProDeckCardResponse>,
-}
-
-#[derive(serde::Deserialize, Debug)]
-struct YGOProDeckCardResponse {
-    id: i32,
-    name: String,
-    #[serde(rename = "type")]
-    card_type: String,
-    #[serde(rename = "frameType")]
-    frame_type: String,
-    desc: String,
-    ygoprodeck_url: String,
-    card_images: Vec<YGOProDeckCardImageResponse>
-}
-
-#[derive(serde::Deserialize, Debug)]
-struct YGOProDeckCardImageResponse {
-    id: i32,
-    image_url: String,
-    image_url_small: String,
-    image_url_cropped: String,
 }
 
 struct EDOProBanListEntry {
@@ -117,27 +91,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut ban_list_entries = Vec::<EDOProBanListEntry>::new();
 
-        let client = reqwest::Client::builder()
-                .user_agent("ygo-utils")
-                .build()?;
+        let client = ygo_pro_deck::Client::new()?;
         
         for (konami_id, count) in content.regulation.iter() {
-            let card = client
-                .get(format!("https://db.ygoprodeck.com/api/v7/cardinfo.php?konami_id={}&misc=yes", konami_id))
-                .send()
-                .await?
-                .json::<YGOProDeckResponse>()
-                .await?
-                .data;
+            let card = client.get_card_by_konami_id(konami_id).await?;
 
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-            for card_art in &card[0].card_images {
+            for card_art in &card.card_images {
                 ban_list_entries.push(
                     EDOProBanListEntry { 
                         ygo_pro_id: card_art.id, 
                         count: *count, 
-                        card_name: card[0].name.clone()
+                        card_name: card.name.to_owned(),
                     }
                 );
             }

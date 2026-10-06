@@ -8,7 +8,6 @@ pub struct BanListName {
 
 #[derive(serde::Deserialize, Debug)]
 pub struct BanListVector {
-    pub date: String,
     // String is Konami id, i32 is count
     pub regulation: std::collections::HashMap<String, i32>
 }
@@ -66,7 +65,7 @@ impl Client {
 
     pub async fn get_banlist_content(&self, ban_list_name: &BanListName) -> Result<BanListVector, reqwest::Error> {
         self.client
-            .get(format!("https://api.github.com/repos/DawnbrandBots/yaml-yugi-limit-regulation/contents/data/master-duel/{}.vector.json", ban_list_name.effective_date))
+            .get(std::format!("https://api.github.com/repos/DawnbrandBots/yaml-yugi-limit-regulation/contents/data/master-duel/{}.vector.json", ban_list_name.effective_date))
             .header(
                 reqwest::header::ACCEPT, 
                 "application/vnd.github.raw+json"
@@ -86,7 +85,7 @@ impl BanListName {
 
 impl std::fmt::Display for BanListName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.effective_date)
+        std::write!(f, "{}", self.effective_date)
     }
 }
 
@@ -107,6 +106,6 @@ impl std::error::Error for ParseBanListNameErr {}
 
 impl std::fmt::Display for ParseBanListNameErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Invalid ban list name")
+        std::write!(f, "Invalid ban list name")
     }
 }
