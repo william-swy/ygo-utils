@@ -1,8 +1,6 @@
 use clap::{Args, Parser, ValueEnum};
 use std::{println, str::FromStr};
 
-use crate::yaml_yugi::BanListName;
-
 mod yaml_yugi;
 
 #[derive(Parser)]
@@ -111,10 +109,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if let Some(version) = cli.operation.generate {
-        let name = BanListName::from_str(&version)?;
+        let name = yaml_yugi::BanListName::from_str(&version)?;
 
         let content = ban_list_client
-            .get_banlist_content(name)
+            .get_banlist_content(&name)
             .await?;
 
         let mut ban_list_entries = Vec::<EDOProBanListEntry>::new();
@@ -145,45 +143,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        write_ban_list("2026-10-06", ban_list_entries).unwrap();
+        write_ban_list(name.as_str(), ban_list_entries).unwrap();
     }
 
-
-
-    // // TODO Need to add header
-    // // #[<Date> Master Duel]
-    // // !<Date> Master Duel
-    // // For easier reading separate into sections
-    // // #Forbidden
-    // // #Limited
-    // // #Semi-limited
-
-    // let mut ban_list_entries = Vec::<EDOProBanListEntry>::new();
-
-    // for (konami_id, count) in file.regulation.iter() {
-    //     let card = client
-    //         .get(format!("https://db.ygoprodeck.com/api/v7/cardinfo.php?konami_id={}&misc=yes", konami_id))
-    //         .send()
-    //         .unwrap()
-    //         .json::<YGOProDeckResponse>()
-    //         .unwrap()
-    //         .data;
-
-    //     println!("Sleeping");
-    //     std::thread::sleep(std::time::Duration::from_millis(500));
-
-    //     for card_art in &card[0].card_images {
-    //         ban_list_entries.push(
-    //             EDOProBanListEntry { 
-    //                 ygo_pro_id: card_art.id, 
-    //                 count: *count, 
-    //                 card_name: card[0].name.clone()
-    //             }
-    //         );
-    //     }
-    // }
-
-    // write_ban_list("2026-10-06", ban_list_entries).unwrap();
     Ok(())
-
 }

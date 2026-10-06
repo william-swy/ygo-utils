@@ -64,7 +64,7 @@ impl Client {
         return None
     }
 
-    pub async fn get_banlist_content(&self, ban_list_name: BanListName) -> Result<BanListVector, reqwest::Error> {
+    pub async fn get_banlist_content(&self, ban_list_name: &BanListName) -> Result<BanListVector, reqwest::Error> {
         self.client
             .get(format!("https://api.github.com/repos/DawnbrandBots/yaml-yugi-limit-regulation/contents/data/master-duel/{}.vector.json", ban_list_name.effective_date))
             .header(
@@ -75,6 +75,12 @@ impl Client {
             .await?
             .json::<BanListVector>()
             .await
+    }
+}
+
+impl BanListName {
+    pub fn as_str(&self) -> &str {
+        &self.effective_date
     }
 }
 
