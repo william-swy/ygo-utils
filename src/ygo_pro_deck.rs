@@ -1,5 +1,9 @@
+use crate::throttle::Throttler;
+
+// #[derive(Clone)]
 pub struct Client {
     client: reqwest::Client,
+    throttle: Throttler,
 }
 
 // From https://ygoprodeck.com/api-guide/
@@ -31,6 +35,7 @@ impl Client {
     pub fn new() -> Result<Self, reqwest::Error> {
         Ok(Self {
             client: reqwest::Client::builder().user_agent("ygo-utils").build()?,
+            throttle: Throttler::new(10),
         })
     }
 
@@ -38,6 +43,7 @@ impl Client {
         &self,
         konami_id: &str,
     ) -> Result<YGOProDeckCardResponse, YGOProDeckErr> {
+        self.throttle.invoke().await;
         let res = self
             .client
             .get(format!(

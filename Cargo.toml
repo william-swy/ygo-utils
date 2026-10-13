@@ -10,3 +10,4 @@ serde = { version = "1.0.229", features = ["derive"] }
 chrono = {version = "0.4.45" }
 tokio = { version = "1.48.0", features = ["rt-multi-thread", "macros"]}
 clap = { version = "4.6.7", features = ["derive"] }
+futures = {version = "0.3.34" }
