@@ -39,8 +39,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ban_lists = ban_list_client.get_banlists().await?;
 
     if let Some(show) = cli.operation.show {
-        for name in ban_lists {
-            std::println!("{}", name);
+        match show {
+            Show::All => {
+                for name in ban_lists {
+                    std::println!("{}", name);
+                }
+            },
+            Show::Current => todo!(),
+            Show::Next => todo!(),
         }
     }
 
